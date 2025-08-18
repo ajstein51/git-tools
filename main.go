@@ -4,21 +4,25 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/astein-peddi/git-tooling/completion"
 	"github.com/astein-peddi/git-tooling/prs"
 	"github.com/spf13/cobra"
 )
 	
 func main() {
-       rootCmd := &cobra.Command{
-	       Use:   "peddi-tooling",
-	       Short: "Peddi Tooling CLI",
-	       Long:  "Tooling for Peddi Git Tasks",
-       }
+	completion.FetchAllBranches()
 
-       rootCmd.AddCommand(prs.SetupPrsCommand())
+	rootCmd := &cobra.Command{
+		Use:   "peddi-tooling",
+		Short: "Peddi Tooling CLI",
+		Long:  "Tooling for Peddi Git Tasks",
+	}
 
-       if err := rootCmd.Execute(); err != nil {
-	       fmt.Println(err)
-	       os.Exit(1)
-       }
+	rootCmd.AddCommand(prs.SetupPrsCommand())
+	rootCmd.AddCommand(completion.SetupCompletionCommand())
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

@@ -7,37 +7,48 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/spf13/cobra"
 )
+
+// move the getBranchNames to a function here
+func GetBranchNames() []string {
+
+	if !utils.IsInsideGitRepository() {
+		return []string{}
+	}
+
+	cmd := exec.Command("git", "branch", "--all", "--format=%(refname:short)")
+	out, err := cmd.Output()
+	if err != nil {
+		return []string{}
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var branches []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && line != "HEAD" {
+			branches = append(branches, line)
+		}
+	}
+	return branches
+}
 
 func SetupPrsCommand() *cobra.Command {
 	var outputJSON bool
 	var useLocal bool
 
-	getBranchNames := func() []string {
-		cmd := exec.Command("git", "branch", "--all", "--format=%(refname:short)")
-		out, err := cmd.Output()
-		if err != nil {
-			return []string{}
-		}
-
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-		var branches []string
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" && line != "HEAD" {
-				branches = append(branches, line)
-			}
-		}
-		return branches
-	}
-
-	prsCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "prs [branchA] [branchB]",
 		Short: "List PRs in branchA that are not yet in branchB",
 		Args:  cobra.MaximumNArgs(2),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			allBranches := getBranchNames()
+			if !utils.IsInsideGitRepository() {
+				return []string{}, cobra.ShellCompDirectiveNoFileComp
+			}
+
+			allBranches := GetBranchNames()
 			var matches []string
 			for _, b := range allBranches {
 				if strings.HasPrefix(b, toComplete) {
@@ -47,6 +58,10 @@ func SetupPrsCommand() *cobra.Command {
 			return matches, cobra.ShellCompDirectiveNoFileComp
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !utils.IsInsideGitRepository() {
+				return fmt.Errorf("not inside a git repository")
+			}
+
 			branchA := "dev"
 			branchB := "rtm"
 
@@ -81,8 +96,8 @@ func SetupPrsCommand() *cobra.Command {
 		},
 	}
 
-	prsCmd.Flags().BoolVar(&outputJSON, "json", false, "Output results as JSON")
-	prsCmd.Flags().BoolVar(&useLocal, "local", false, "Use local branches instead of origin/<branch>")
+	cmd.Flags().BoolVar(&outputJSON, "json", false, "Output results as JSON")
+	cmd.Flags().BoolVar(&useLocal, "local", false, "Use local branches instead of origin/<branch>")
 
-	return prsCmd
+	return cmd
 }
