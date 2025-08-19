@@ -1,27 +1,32 @@
 [Setup]
 AppName=Peddi Tooling
 AppVersion=1.0
-DefaultDirName={commonpf}\PeddiTooling
+DefaultDirName={userappdata}\PeddiTooling
 DefaultGroupName=Peddi Tooling
 OutputBaseFilename=peddi-tooling-installer
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64os
-
 
 [Files]
 Source: "C:\Users\AJ\source\repos\git-tools\peddi-tooling.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\AJ\source\repos\git-tools\uninstall-completion.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "C:\Users\AJ\source\repos\git-tools\install-completion.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{group}\Peddi Tooling"; Filename: "{app}\peddi-tooling.exe"
 
 [Registry]
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
-    ValueData: "{olddata};{app}"; Flags: preservestringtype uninsdeletevalue
-
+; We do not touch system PATH, user PATH is updated in PowerShell script
 
 [Run]
 Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{tmp}\install-completion.ps1"""; Flags: runhidden
+Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{tmp}\install-completion.ps1"" -InstallFolder ""{app}"""; \
+Flags: runhidden
+
+[UninstallRun]
+Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; \
+Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-completion.ps1"" -InstallFolder ""{app}"""; \
+Flags: runhidden
+
