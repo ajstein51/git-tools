@@ -21,11 +21,11 @@ func FetchAllBranches() {
 	}
 }
 
-func SetupCompletionCommand() *cobra.Command {
+func SetupAutoCompleteCommand() *cobra.Command {
 	var persist bool
 
 	cmd := &cobra.Command{
-		Use:   "completion",
+		Use:   "autoComplete",
 		Short: "Generate completion scripts",
 		Long:  "Generate PowerShell completion scripts for the CLI",
 		RunE: func(cmd *cobra.Command, args []string) error {
