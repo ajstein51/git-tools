@@ -26,3 +26,5 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// go build -o peddi-tooling.exe ./main.go

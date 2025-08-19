@@ -3,7 +3,7 @@ param(
     [string]$InstallFolder
 )
 
-# === Update user PATH (append only, no overwrite) ===
+# === Update user PATH ===
 $oldUserPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
 if (-not $oldUserPath) { $oldUserPath = "" }
 

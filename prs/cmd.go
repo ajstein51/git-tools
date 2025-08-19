@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// move the getBranchNames to a function here
 func GetBranchNames() []string {
 
 	if !utils.IsInsideGitRepository() {
