@@ -12,10 +12,6 @@ import (
 )
 
 func main() {
-	// utils.TestAuth()
-
-	// completion.FetchAllBranches()
-
 	rootCmd := &cobra.Command{
 		Use:   "peddi-tooling",
 		Short: "Peddi Tooling CLI",

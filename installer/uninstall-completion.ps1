@@ -1,12 +1,9 @@
-# uninstall-completion.ps1
-# This script ONLY removes configuration.
-
 param(
     [Parameter(Mandatory=$true)]
     [string]$InstallFolder
 )
 
-# === 1. Remove entry from user PATH ===
+# Remove entry from user PATH 
 $pathToRemove = $InstallFolder.TrimEnd('\')
 $userPathKey = "Registry::HKEY_CURRENT_USER\Environment"
 $currentUserPath = (Get-ItemProperty -Path $userPathKey -Name Path -ErrorAction SilentlyContinue).Path
@@ -27,7 +24,7 @@ if ($currentUserPath) {
     Write-Host "Removed '$pathToRemove' from user PATH."
 }
 
-# === 2. Remove completion from PowerShell profile ===
+# Remove completion from PowerShell profile
 $profilePath = $PROFILE
 
 # Only proceed if the user's profile file exists
@@ -44,8 +41,7 @@ if (Test-Path $profilePath) {
     Write-Host "Removed completion sourcing from PowerShell profile."
 }
 
-# === 3. Broadcast Environment Change to the System ===
-# This tells other apps to reload environment variables.
+# Broadcast Environment Change to the System
 Write-Host "Broadcasting environment variable changes..."
 try {
     $csCode = @"

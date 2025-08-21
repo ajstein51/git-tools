@@ -3,7 +3,7 @@ param(
     [string]$InstallFolder
 )
 
-# === 1. Update user PATH in the Registry AND for the current session ===
+# Update user PATH in the Registry AND for the current session
 $newPathEntry = $InstallFolder.TrimEnd('\')
 $userPathKey = "Registry::HKEY_CURRENT_USER\Environment"
 $oldUserPath = (Get-ItemProperty -Path $userPathKey -Name Path -ErrorAction SilentlyContinue).Path
@@ -17,7 +17,7 @@ if (-not ($pathArray -contains $newPathEntry)) {
     Set-ItemProperty -Path $userPathKey -Name Path -Value $newUserPath
     Write-Host "User PATH registry key updated with: $newPathEntry"
 
-    # IMPORTANT: Update the PATH for this script's current session
+    # Update the PATH for this script's current session
     $env:Path = $newUserPath
 } else {
     Write-Host "PATH entry already exists."
@@ -25,12 +25,11 @@ if (-not ($pathArray -contains $newPathEntry)) {
 }
 
 
-# === 2. Generate and Persist PowerShell Completion Script ===
+# Generate and Persist PowerShell Completion Script
 $completionScriptPath = Join-Path $InstallFolder "__peddi-tooling-completion.ps1"
 
 try {
     Write-Host "Generating completion script..."
-    # Now that the PATH is set for this session, we can be more confident this works.
     & "$InstallFolder\peddi-tooling.exe" completion powershell | Out-File -FilePath $completionScriptPath -Encoding UTF8
 
     # Ensure the PowerShell profile file and its directory exist
@@ -40,6 +39,7 @@ try {
         Write-Host "Profile directory not found. Creating: $profileDir"
         New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
     }
+
     # Create the profile file if it doesn't exist
     if (-not (Test-Path $profilePath)) {
         Write-Host "Profile file not found. Creating: $profilePath"
@@ -47,7 +47,7 @@ try {
     }
 
     # Add the sourcing line to the profile if it's not already there
-    $sourceCommand = ". `"$completionScriptPath`"" # Use quotes to handle spaces in path
+    $sourceCommand = ". `"$completionScriptPath`""
     if (-not (Select-String -Path $profilePath -Pattern ([regex]::Escape($sourceCommand)) -Quiet)) {
         Add-Content -Path $profilePath -Value $sourceCommand
         Write-Host "PowerShell completion persisted in $profilePath"
@@ -59,8 +59,7 @@ try {
     Write-Warning "Failed to generate or persist completion script: $_"
 }
 
-# === 3. Broadcast Environment Change to the System ===
-# This tells other apps (like Explorer) to reload environment variables.
+# Broadcast Environment Change to the System
 Write-Host "Broadcasting environment variable changes to the system..."
 try {
     $csCode = @"
