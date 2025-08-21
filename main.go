@@ -8,14 +8,13 @@ import (
 	"github.com/astein-peddi/git-tooling/completion"
 	"github.com/astein-peddi/git-tooling/projects"
 	"github.com/astein-peddi/git-tooling/prs"
-	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	utils.TestAuth()
+	// utils.TestAuth()
 
-	completion.FetchAllBranches()
+	// completion.FetchAllBranches()
 
 	rootCmd := &cobra.Command{
 		Use:   "peddi-tooling",

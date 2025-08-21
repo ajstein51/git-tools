@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -124,6 +125,10 @@ func fetchMergedPRsShurcooL(owner, repo, baseBranch string, debug bool) ([]PR, e
 			MergeCommit: node.MergeCommit,
 		})
 	}
+
+	sort.Slice(prs, func(i, j int) bool {
+		return prs[i].Number > prs[j].Number
+	})
 
 	fmt.Printf("Found %d merged PRs\n", len(prs))
 	return prs, nil

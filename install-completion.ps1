@@ -3,38 +3,84 @@ param(
     [string]$InstallFolder
 )
 
-# === Update user PATH ===
-$oldUserPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+# === 1. Update user PATH in the Registry AND for the current session ===
+$newPathEntry = $InstallFolder.TrimEnd('\')
+$userPathKey = "Registry::HKEY_CURRENT_USER\Environment"
+$oldUserPath = (Get-ItemProperty -Path $userPathKey -Name Path -ErrorAction SilentlyContinue).Path
+
 if (-not $oldUserPath) { $oldUserPath = "" }
 
-$newPathEntry = $InstallFolder.TrimEnd('\')
+# Check if the path is already present
+$pathArray = $oldUserPath -split ';' | ForEach-Object { $_.Trim() }
+if (-not ($pathArray -contains $newPathEntry)) {
+    $newUserPath = if ([string]::IsNullOrEmpty($oldUserPath)) { $newPathEntry } else { "$oldUserPath;$newPathEntry" }
+    Set-ItemProperty -Path $userPathKey -Name Path -Value $newUserPath
+    Write-Host "User PATH registry key updated with: $newPathEntry"
 
-if (-not ($oldUserPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ieq $newPathEntry })) {
-    $newUserPath = if ($oldUserPath) { "$oldUserPath;$newPathEntry" } else { $newPathEntry }
-    [System.Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+    # IMPORTANT: Update the PATH for this script's current session
+    $env:Path = $newUserPath
+} else {
+    Write-Host "PATH entry already exists."
+    $env:Path = $oldUserPath # Ensure current session has the correct PATH
 }
 
-Write-Host "User PATH updated with: $newPathEntry"
 
-# === Generate PowerShell completion using Cobra CLI ===
+# === 2. Generate and Persist PowerShell Completion Script ===
 $completionScriptPath = Join-Path $InstallFolder "__peddi-tooling-completion.ps1"
 
 try {
-    # Generate the completion script for PowerShell
-    & "$InstallFolder\peddi-tooling.exe" completion powershell | Out-String | Set-Content -Path $completionScriptPath -Encoding UTF8
+    Write-Host "Generating completion script..."
+    # Now that the PATH is set for this session, we can be more confident this works.
+    & "$InstallFolder\peddi-tooling.exe" completion powershell | Out-File -FilePath $completionScriptPath -Encoding UTF8
 
-    # Load completion for current session
-    . $completionScriptPath
-    Write-Host "PowerShell tab completion loaded for peddi-tooling (current session)"
-
-    # Persist completion in profile
+    # Ensure the PowerShell profile file and its directory exist
     $profilePath = $PROFILE
-    if (-not (Select-String -Path $profilePath -Pattern "__peddi-tooling-completion.ps1" -Quiet)) {
-        Add-Content -Path $profilePath -Value ". '$completionScriptPath'"
-        Write-Host "PowerShell completion persisted in $profilePath"
+    $profileDir = Split-Path $profilePath -Parent
+    if (-not (Test-Path $profileDir)) {
+        Write-Host "Profile directory not found. Creating: $profileDir"
+        New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
     }
+    # Create the profile file if it doesn't exist
+    if (-not (Test-Path $profilePath)) {
+        Write-Host "Profile file not found. Creating: $profilePath"
+        New-Item -ItemType File -Path $profilePath -Force | Out-Null
+    }
+
+    # Add the sourcing line to the profile if it's not already there
+    $sourceCommand = ". `"$completionScriptPath`"" # Use quotes to handle spaces in path
+    if (-not (Select-String -Path $profilePath -Pattern ([regex]::Escape($sourceCommand)) -Quiet)) {
+        Add-Content -Path $profilePath -Value $sourceCommand
+        Write-Host "PowerShell completion persisted in $profilePath"
+    } else {
+        Write-Host "PowerShell completion already configured in profile."
+    }
+
 } catch {
-    Write-Warning "Failed to generate or load completion script: $_"
+    Write-Warning "Failed to generate or persist completion script: $_"
 }
 
-Write-Host "Installation complete. Restart PowerShell to ensure PATH and completion are fully active."
+# === 3. Broadcast Environment Change to the System ===
+# This tells other apps (like Explorer) to reload environment variables.
+Write-Host "Broadcasting environment variable changes to the system..."
+try {
+    $csCode = @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Win32 {
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessageTimeout(
+            IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+            uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+    }
+"@
+    Add-Type -TypeDefinition $csCode
+    $HWND_BROADCAST = [IntPtr]0xffff;
+    $WM_SETTINGCHANGE = 0x1a;
+    $result = [UIntPtr]::Zero
+    [Win32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "Environment", 2, 5000, [ref]$result) | Out-Null
+    Write-Host "Broadcast sent."
+} catch {
+    Write-Warning "Failed to broadcast environment variable change. A restart or logoff may be required."
+}
+
+Write-Host "Installation complete. For completion to work, please CLOSE and REOPEN any PowerShell windows."
