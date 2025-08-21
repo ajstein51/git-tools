@@ -4,22 +4,29 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/astein-peddi/git-tooling/auth"
 	"github.com/astein-peddi/git-tooling/completion"
+	"github.com/astein-peddi/git-tooling/projects"
 	"github.com/astein-peddi/git-tooling/prs"
+	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/spf13/cobra"
 )
-	
+
 func main() {
+	utils.TestAuth()
+
 	completion.FetchAllBranches()
 
 	rootCmd := &cobra.Command{
 		Use:   "peddi-tooling",
 		Short: "Peddi Tooling CLI",
-		Long:  "Tooling for Peddi Git Tasks",
+		Long:  "Tooling for Peddinghaus Git Tasks",
 	}
 
-	rootCmd.AddCommand(prs.SetupPrsCommand())
 	rootCmd.AddCommand(completion.SetupAutoCompleteCommand())
+	rootCmd.AddCommand(prs.SetupPrsCommand())
+	rootCmd.AddCommand(auth.SetupAuthCommand())
+	rootCmd.AddCommand(projects.SetupProjectsCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

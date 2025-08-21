@@ -58,6 +58,7 @@ func SetupAutoCompleteCommand() *cobra.Command {
 			}
 
 			fmt.Printf("\n\033[32mPowerShell completion persisted to %s. Restart PowerShell to activate.\033[0m\n", profilePath)
+			
 			return nil
 		},
 	}

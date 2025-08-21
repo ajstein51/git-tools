@@ -1,8 +1,10 @@
 package prs
 
 type PR struct {
-	Number      string `json:"number"`
-	Title       string `json:"title"`
-	ShortCommit string `json:"short_commit"`
-	URL         string `json:"url"`
+	Number      int
+	Title       string
+	URL         string
+	MergeCommit struct {
+		Oid string
+	}
 }
