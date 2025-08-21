@@ -1,6 +1,6 @@
 # Peddi Tooling CLI
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/astein-peddi/git-tooling/actions)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/ajstein51/git-tools/actions)
 [![Version](https://img.shields.io/badge/version-1.0-blue)](https://github.com/astein-peddi/git-tooling/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
