@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/shurcooL-graphql"
@@ -101,15 +102,16 @@ func SetupPrsCommand() *cobra.Command {
 			return nil
 		},
 	}
+	
 	return cmd
 }
 
-func fetchRecentMergedPRsPage(client *api.GraphQLClient, owner, repo, baseBranch string, afterCursor *graphql.String) ([]PR, PageInfo, error) {
+func fetchRecentMergedPRsPage(client *api.GraphQLClient, owner, repo, baseBranch string, afterCursor *graphql.String) ([]PR, models.PageInfo, error) {
 	var query struct {
 		Repository struct {
 			PullRequests struct {
 				Nodes    []PR
-				PageInfo PageInfo
+				PageInfo models.PageInfo
 			} `graphql:"pullRequests(baseRefName: $baseRef, states: MERGED, first: 20, after: $after, orderBy: {field: UPDATED_AT, direction: DESC})"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
@@ -123,7 +125,7 @@ func fetchRecentMergedPRsPage(client *api.GraphQLClient, owner, repo, baseBranch
 
 	err := client.Query("MergedPullRequests", &query, variables)
 	if err != nil {
-		return nil, PageInfo{}, fmt.Errorf("failed to fetch merged PRs: %w", err)
+		return nil, models.PageInfo{}, fmt.Errorf("failed to fetch merged PRs: %w", err)
 	}
 
 	return query.Repository.PullRequests.Nodes, query.Repository.PullRequests.PageInfo, nil

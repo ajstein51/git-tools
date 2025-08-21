@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/cli/shurcooL-graphql"
 	"github.com/spf13/cobra"
@@ -190,38 +191,81 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 		return err
 	}
 
-	var query struct {
-		Repository struct {
-			ProjectV2 struct {
+	var allItems []ProjectItem
+	var foundProject bool
+
+	var orgQuery struct {
+		Organization struct {
+			ProjectV2 *struct { 
 				Items struct {
 					Nodes    []ProjectItem
-					PageInfo struct {
-						HasNextPage bool
-						EndCursor   string
-					}
+					PageInfo models.PageInfo
 				} `graphql:"items(first: 100, after: $after)"`
 			} `graphql:"projectV2(number: $number)"`
-		} `graphql:"repository(owner: $owner, name: $repo)"`
+		} `graphql:"organization(login: $owner)"`
 	}
 
-	variables := map[string]any{
+	orgVariables := map[string]any{
 		"owner":  graphql.String(owner),
-		"repo":   graphql.String(repo),
 		"number": graphql.Int(projectNumber),
 		"after":  (*graphql.String)(nil),
 	}
 
-	var allItems []ProjectItem
-	for {
-		err = client.Query("RepoProjectItems", &query, variables)
-		if err != nil {
-			return fmt.Errorf("failed to find project #%d in repository %s/%s. It may be an organization-level project. Error: %w", projectNumber, owner, repo, err)
+	if err := client.Query("OrgProjectItems", &orgQuery, orgVariables); err == nil && orgQuery.Organization.ProjectV2 != nil {
+		foundProject = true
+
+		allItems = append(allItems, orgQuery.Organization.ProjectV2.Items.Nodes...)
+		pageInfo := orgQuery.Organization.ProjectV2.Items.PageInfo
+		for pageInfo.HasNextPage {
+			orgVariables["after"] = graphql.String(pageInfo.EndCursor)
+
+			if err := client.Query("OrgProjectItems", &orgQuery, orgVariables); err != nil {
+				break
+			}
+
+			allItems = append(allItems, orgQuery.Organization.ProjectV2.Items.Nodes...)
+			pageInfo = orgQuery.Organization.ProjectV2.Items.PageInfo
 		}
-		allItems = append(allItems, query.Repository.ProjectV2.Items.Nodes...)
-		if !query.Repository.ProjectV2.Items.PageInfo.HasNextPage {
-			break
+	}
+
+	if !foundProject {
+		var repoQuery struct {
+			Repository struct {
+				ProjectV2 *struct {
+					Items struct {
+						Nodes    []ProjectItem
+						PageInfo models.PageInfo
+					} `graphql:"items(first: 100, after: $after)"`
+				} `graphql:"projectV2(number: $number)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
 		}
-		variables["after"] = graphql.String(query.Repository.ProjectV2.Items.PageInfo.EndCursor)
+
+		repoVariables := map[string]any{
+			"owner":  graphql.String(owner),
+			"repo":   graphql.String(repo),
+			"number": graphql.Int(projectNumber),
+			"after":  (*graphql.String)(nil),
+		}
+		
+		if err := client.Query("RepoProjectItems", &repoQuery, repoVariables); err == nil && repoQuery.Repository.ProjectV2 != nil {
+			foundProject = true
+
+			allItems = append(allItems, repoQuery.Repository.ProjectV2.Items.Nodes...)
+			pageInfo := repoQuery.Repository.ProjectV2.Items.PageInfo
+			for pageInfo.HasNextPage {
+				repoVariables["after"] = graphql.String(pageInfo.EndCursor)
+				if err := client.Query("RepoProjectItems", &repoQuery, repoVariables); err != nil {
+					break
+				}
+
+				allItems = append(allItems, repoQuery.Repository.ProjectV2.Items.Nodes...)
+				pageInfo = repoQuery.Repository.ProjectV2.Items.PageInfo
+			}
+		}
+	}
+
+	if !foundProject {
+		return fmt.Errorf("failed to find project #%d in organization '%s' or repository '%s/%s'. Please check the project ID and your permissions", projectNumber, owner, owner, repo)
 	}
 
 	var filteredItems []ProjectItem
@@ -230,12 +274,13 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 			filteredItems = append(filteredItems, item)
 		}
 	}
-	
+
 	sort.Slice(filteredItems, func(i, j int) bool {
 		itemI := filteredItems[i]
 		itemJ := filteredItems[j]
 		isPRI := itemI.Content.Typename == "PullRequest"
 		isPRJ := itemJ.Content.Typename == "PullRequest"
+		
 		if isPRI && isPRJ {
 			return itemI.Content.PR.Number > itemJ.Content.PR.Number
 		}

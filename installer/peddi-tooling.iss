@@ -10,9 +10,9 @@ PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64os
 
 [Files]
-Source: "D:\source\repos\tooling\git-tools\peddi-tooling.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\source\repos\tooling\git-tools\uninstall-completion.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\source\repos\tooling\git-tools\install-completion.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall
+Source: "..\peddi-tooling.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "uninstall-completion.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "install-completion.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{group}\Peddi Tooling"; Filename: "{app}\peddi-tooling.exe"

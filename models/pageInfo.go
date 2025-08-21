@@ -1,4 +1,4 @@
-package prs
+package models
 
 type PageInfo struct {
 	HasNextPage bool
