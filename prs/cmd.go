@@ -118,7 +118,7 @@ func fetchRecentMergedPRsPage(client *api.GraphQLClient, owner, repo, baseBranch
 		"owner":   graphql.String(owner),
 		"repo":    graphql.String(repo),
 		"baseRef": graphql.String(baseBranch),
-		"after":   afterCursor, // This is now the correct type
+		"after":   afterCursor,
 	}
 
 	err := client.Query("MergedPullRequests", &query, variables)
