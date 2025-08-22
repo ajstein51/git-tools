@@ -5,13 +5,21 @@ import (
 )
 
 type ProjectItem struct {
-	ID      graphql.ID
+	ID               graphql.ID
+	FieldValueByName struct {
+		Typename          graphql.String `graphql:"__typename"`
+		SingleSelectValue struct {
+			Name string
+		} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
+		TextValue struct {
+			Text string
+		} `graphql:"... on ProjectV2ItemFieldTextValue"`
+	} `graphql:"fieldValueByName(name: $fieldName)"`
 	Content struct {
 		Typename graphql.String `graphql:"__typename"`
-
-		Issue struct {
-			Number int
-			Title  string
+		Issue    struct {
+			Number        int
+			Title         string
 			TimelineItems struct {
 				Nodes []struct {
 					ConnectedEvent struct {
@@ -32,9 +40,7 @@ type ProjectItem struct {
 				}
 			} `graphql:"timelineItems(itemTypes: [CONNECTED_EVENT, CROSS_REFERENCED_EVENT, REFERENCED_EVENT], first: 5)"`
 		} `graphql:"... on Issue"`
-
-		PR PullRequestFragment `graphql:"... on PullRequest"`
-
+		PR         PullRequestFragment `graphql:"... on PullRequest"`
 		DraftIssue struct {
 			Title string
 		} `graphql:"... on DraftIssue"`

@@ -3,16 +3,18 @@ package projects
 import (
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
+	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/shurcooL-graphql"
 	"github.com/spf13/cobra"
 )
 
 func SetupProjectsCommand() *cobra.Command {
 	var projectNumber int
-	var repoOwner, repoName string
+	var repoOwner, repoName, groupByField string
 
 	cmd := &cobra.Command{
 		Use:   "projects",
@@ -38,6 +40,7 @@ func SetupProjectsCommand() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().IntVar(&projectNumber, "id", 0, "Project number (defaults to last project)")
+	cmd.PersistentFlags().StringVar(&groupByField, "groupBy", "", "Group by a custom field (e.g., 'Priority')")
 
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -48,7 +51,7 @@ func SetupProjectsCommand() *cobra.Command {
 		Use:   "all",
 		Short: "List all issues/cards in the project",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listProjectCards(repoOwner, repoName, projectNumber, nil)
+			return listProjectCards(repoOwner, repoName, projectNumber, nil, groupByField)
 		},
 	}
 
@@ -58,16 +61,17 @@ func SetupProjectsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filter := func(item ProjectItem) bool {
 				if item.Content.Typename == "PullRequest" {
-					return false // It is a PR.
-				}
-				if item.Content.Typename == "Issue" {
-					return len(getLinkedPRs(item)) == 0 
+					return false
 				}
 
-				return item.Content.Typename == "DraftIssue" 
+				if item.Content.Typename == "Issue" {
+					return len(getLinkedPRs(item)) == 0
+				}
+
+				return item.Content.Typename == "DraftIssue"
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter)
+			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -79,6 +83,7 @@ func SetupProjectsCommand() *cobra.Command {
 				if item.Content.Typename == "PullRequest" {
 					return true
 				}
+
 				if item.Content.Typename == "Issue" {
 					return len(getLinkedPRs(item)) > 0
 				}
@@ -86,7 +91,7 @@ func SetupProjectsCommand() *cobra.Command {
 				return false
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter)
+			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -98,10 +103,11 @@ func SetupProjectsCommand() *cobra.Command {
 				if item.Content.Typename == "PullRequest" {
 					return item.Content.PR.MergedAt == nil
 				}
+
 				if item.Content.Typename == "Issue" {
 					for _, pr := range getLinkedPRs(item) {
 						if pr.MergedAt == nil {
-							return true 
+							return true
 						}
 					}
 				}
@@ -109,7 +115,7 @@ func SetupProjectsCommand() *cobra.Command {
 				return false
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter)
+			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -128,7 +134,6 @@ func SetupProjectsCommand() *cobra.Command {
 
 			filter := func(item ProjectItem) bool {
 				var prsToCheck []PullRequestFragment
-
 				switch item.Content.Typename {
 					case "PullRequest":
 						prsToCheck = append(prsToCheck, item.Content.PR)
@@ -147,7 +152,7 @@ func SetupProjectsCommand() *cobra.Command {
 				return false
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter)
+			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -166,37 +171,85 @@ func getLastProjectNumber(owner, repo string) (int, error) {
 	}
 
 	var query struct {
+		Organization struct {
+			ProjectsV2 struct {
+				Nodes []struct {
+					Number    int
+					CreatedAt time.Time
+				}
+			} `graphql:"projectsV2(first: 1, orderBy: {field: CREATED_AT, direction: DESC})"`
+		} `graphql:"organization(login: $owner)"`
 		Repository struct {
 			ProjectsV2 struct {
-				Nodes []struct{ Number int }
-			} `graphql:"projectsV2(first: 1, orderBy: {field: UPDATED_AT, direction: DESC})"`
+				Nodes []struct {
+					Number    int
+					CreatedAt time.Time
+				}
+			} `graphql:"projectsV2(first: 1, orderBy: {field: CREATED_AT, direction: DESC})"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
-	variables := map[string]any{"owner": graphql.String(owner), "repo": graphql.String(repo)}
-	err = client.Query("RepoLastProjectNumber", &query, variables)
-	if err != nil {
+	variables := map[string]any{
+		"owner": graphql.String(owner),
+		"repo":  graphql.String(repo),
+	}
+
+	if err := client.Query("LastProjectNumber", &query, variables); err != nil {
 		return 0, err
 	}
-	if len(query.Repository.ProjectsV2.Nodes) == 0 {
-		return 0, fmt.Errorf("no projects found in repository %s/%s", owner, repo)
+
+	orgProjectExists := len(query.Organization.ProjectsV2.Nodes) > 0
+	repoProjectExists := len(query.Repository.ProjectsV2.Nodes) > 0
+
+	if !orgProjectExists && !repoProjectExists {
+		return 0, fmt.Errorf("no projects found in organization or repository for '%s/%s'", owner, repo)
 	}
 
-	return query.Repository.ProjectsV2.Nodes[0].Number, nil
+	if orgProjectExists && !repoProjectExists {
+		return query.Organization.ProjectsV2.Nodes[0].Number, nil
+	}
+
+	if !orgProjectExists && repoProjectExists {
+		return query.Repository.ProjectsV2.Nodes[0].Number, nil
+	}
+
+	orgProject := query.Organization.ProjectsV2.Nodes[0]
+	repoProject := query.Repository.ProjectsV2.Nodes[0]
+
+	if orgProject.CreatedAt.After(repoProject.CreatedAt) {
+		return orgProject.Number, nil
+	}
+
+	return repoProject.Number, nil
 }
 
-func listProjectCards(owner, repo string, projectNumber int, filter func(ProjectItem) bool) error {
+func listProjectCards(owner, repo string, projectNumber int, filter func(ProjectItem) bool, groupByField string) error {
 	client, err := utils.GetGhGraphQLClient()
 	if err != nil {
 		return err
 	}
 
+	allItems, projectTitle, err := fetchProjectData(client, owner, repo, projectNumber, groupByField)
+	if err != nil {
+		return err
+	}
+
+	processedItems := processProjectItems(allItems, filter, groupByField)
+
+	displayProjectItems(processedItems, projectNumber, projectTitle, groupByField)
+
+	return nil
+}
+
+func fetchProjectData(client *api.GraphQLClient, owner, repo string, projectNumber int, groupByField string) ([]ProjectItem, string, error) {
 	var allItems []ProjectItem
+	var projectTitle string
 	var foundProject bool
 
 	var orgQuery struct {
 		Organization struct {
-			ProjectV2 *struct { 
+			ProjectV2 *struct {
+				Title string
 				Items struct {
 					Nodes    []ProjectItem
 					PageInfo models.PageInfo
@@ -211,14 +264,18 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 		"after":  (*graphql.String)(nil),
 	}
 
+	if groupByField != "" {
+		orgVariables["fieldName"] = graphql.String(groupByField)
+	}
+
 	if err := client.Query("OrgProjectItems", &orgQuery, orgVariables); err == nil && orgQuery.Organization.ProjectV2 != nil {
 		foundProject = true
-
+		projectTitle = orgQuery.Organization.ProjectV2.Title
 		allItems = append(allItems, orgQuery.Organization.ProjectV2.Items.Nodes...)
 		pageInfo := orgQuery.Organization.ProjectV2.Items.PageInfo
+
 		for pageInfo.HasNextPage {
 			orgVariables["after"] = graphql.String(pageInfo.EndCursor)
-
 			if err := client.Query("OrgProjectItems", &orgQuery, orgVariables); err != nil {
 				break
 			}
@@ -232,6 +289,7 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 		var repoQuery struct {
 			Repository struct {
 				ProjectV2 *struct {
+					Title string
 					Items struct {
 						Nodes    []ProjectItem
 						PageInfo models.PageInfo
@@ -239,17 +297,21 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 				} `graphql:"projectV2(number: $number)"`
 			} `graphql:"repository(owner: $owner, name: $repo)"`
 		}
-
+		
 		repoVariables := map[string]any{
 			"owner":  graphql.String(owner),
 			"repo":   graphql.String(repo),
 			"number": graphql.Int(projectNumber),
 			"after":  (*graphql.String)(nil),
 		}
-		
+
+		if groupByField != "" {
+			repoVariables["fieldName"] = graphql.String(groupByField)
+		}
+
 		if err := client.Query("RepoProjectItems", &repoQuery, repoVariables); err == nil && repoQuery.Repository.ProjectV2 != nil {
 			foundProject = true
-
+			projectTitle = repoQuery.Repository.ProjectV2.Title
 			allItems = append(allItems, repoQuery.Repository.ProjectV2.Items.Nodes...)
 			pageInfo := repoQuery.Repository.ProjectV2.Items.PageInfo
 			for pageInfo.HasNextPage {
@@ -265,47 +327,99 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 	}
 
 	if !foundProject {
-		return fmt.Errorf("failed to find project #%d in organization '%s' or repository '%s/%s'. Please check the project ID and your permissions", projectNumber, owner, owner, repo)
+		err := fmt.Errorf("failed to find project #%d in organization '%s' or repository '%s/%s'. Please check the project ID and your permissions", projectNumber, owner, owner, repo)
+		return nil, "", err
 	}
 
+	return allItems, projectTitle, nil
+}
+
+func processProjectItems(items []ProjectItem, filter func(ProjectItem) bool, groupByField string) []ProjectItem {
 	var filteredItems []ProjectItem
-	for _, item := range allItems {
+	for _, item := range items {
 		if filter == nil || filter(item) {
 			filteredItems = append(filteredItems, item)
 		}
 	}
 
-	sort.Slice(filteredItems, func(i, j int) bool {
-		itemI := filteredItems[i]
-		itemJ := filteredItems[j]
-		isPRI := itemI.Content.Typename == "PullRequest"
-		isPRJ := itemJ.Content.Typename == "PullRequest"
-		
-		if isPRI && isPRJ {
-			return itemI.Content.PR.Number > itemJ.Content.PR.Number
-		}
-		if isPRI && !isPRJ {
-			return true
-		}
-		if !isPRI && isPRJ {
+	if groupByField != "" {
+		sort.SliceStable(filteredItems, func(i, j int) bool {
+			fieldValueI := getFieldValue(filteredItems[i])
+			fieldValueJ := getFieldValue(filteredItems[j])
+
+			isIEmpty := fieldValueI == ""
+			isJEmpty := fieldValueJ == ""
+
+			if isIEmpty && !isJEmpty {
+				return false 
+			}
+			if !isIEmpty && isJEmpty {
+				return true 
+			}
+
+			return fieldValueI < fieldValueJ
+		})
+	} else {
+		sort.Slice(filteredItems, func(i, j int) bool {
+			itemI := filteredItems[i]
+			itemJ := filteredItems[j]
+			isPRI := itemI.Content.Typename == "PullRequest"
+			isPRJ := itemJ.Content.Typename == "PullRequest"
+
+			if isPRI && isPRJ {
+				return itemI.Content.PR.Number > itemJ.Content.PR.Number
+			}
+
+			if isPRI && !isPRJ {
+				return true
+			}
+
+			if !isPRI && isPRJ {
+				return false
+			}
+
 			return false
-		}
-
-		return false
-	})
-
-	for _, node := range filteredItems {
-		switch node.Content.Typename {
-		case "Issue":
-			fmt.Printf("Issue #%d: %s\n", node.Content.Issue.Number, node.Content.Issue.Title)
-		case "PullRequest":
-			fmt.Printf("PR #%d: %s\n", node.Content.PR.Number, node.Content.PR.Title)
-		case "DraftIssue":
-			fmt.Printf("Draft: %s\n", node.Content.DraftIssue.Title)
-		}
+		})
 	}
 
-	return nil
+	return filteredItems
+}
+
+func displayProjectItems(items []ProjectItem, projectNumber int, projectTitle, groupByField string) {
+	fmt.Printf("\n\tProject #%d - %s\n", projectNumber, projectTitle)
+	fmt.Println("--------------------------------------------------\n")
+
+	const noGroup string = "---no-group---"
+	var lastGroup string
+	if groupByField != "" {
+		lastGroup = noGroup
+	}
+
+	for _, node := range items {
+		var currentGroup, displayGroup string
+		if groupByField != "" {
+			currentGroup = getFieldValue(node)
+
+			if lastGroup != noGroup && currentGroup != lastGroup {
+				fmt.Println()
+			}
+
+			lastGroup = currentGroup
+
+			if currentGroup != "" {
+				displayGroup = fmt.Sprintf("[%s] ", currentGroup)
+			}
+		}
+
+		switch node.Content.Typename {
+			case "Issue":
+				fmt.Printf("%sIssue #%d: %s\n", displayGroup, node.Content.Issue.Number, node.Content.Issue.Title)
+			case "PullRequest":
+				fmt.Printf("%sPR #%d: %s\n", displayGroup, node.Content.PR.Number, node.Content.PR.Title)
+			case "DraftIssue":
+				fmt.Printf("%sDraft: %s\n", displayGroup, node.Content.DraftIssue.Title)
+		}
+	}
 }
 
 func getLinkedPRs(item ProjectItem) []PullRequestFragment {
@@ -321,10 +435,22 @@ func getLinkedPRs(item ProjectItem) []PullRequestFragment {
 			}
 		}
 	}
-	
+
 	sort.Slice(prs, func(i, j int) bool {
 		return prs[i].Number > prs[j].Number
 	})
 
 	return prs
+}
+
+func getFieldValue(item ProjectItem) string {
+	if item.FieldValueByName.Typename == "ProjectV2ItemFieldSingleSelectValue" {
+		return item.FieldValueByName.SingleSelectValue.Name
+	}
+
+	if item.FieldValueByName.Typename == "ProjectV2ItemFieldTextValue" {
+		return item.FieldValueByName.TextValue.Text
+	}
+
+	return "" 
 }
