@@ -3,6 +3,13 @@ param(
     [string]$InstallFolder
 )
 
+# Delete completion script 
+$completionScriptPath = Join-Path $InstallFolder "__peddi-tooling-completion.ps1"
+if (Test-Path $completionScriptPath) {
+    Remove-Item -Path $completionScriptPath -Force
+    Write-Host "Removed generated completion script: $completionScriptPath"
+}
+
 # Remove entry from user PATH 
 $pathToRemove = $InstallFolder.TrimEnd('\')
 $userPathKey = "Registry::HKEY_CURRENT_USER\Environment"

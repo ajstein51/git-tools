@@ -130,6 +130,5 @@ Comparing recent PRs merged into 'dev' that are not yet in 'main'...
 
 #402: Add new feature for production (https://github.com/org/repo/pull/402)
 #398: Fix critical bug in API (https://github.com/org/repo/pull/398)
-(No differences found on this page)
 
 --- Press Enter for next page, or q to quit:
