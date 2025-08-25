@@ -387,7 +387,8 @@ func processProjectItems(items []ProjectItem, filter func(ProjectItem) bool, gro
 
 func displayProjectItems(items []ProjectItem, projectNumber int, projectTitle, groupByField string) {
 	fmt.Printf("\n\tProject #%d - %s\n", projectNumber, projectTitle)
-	fmt.Println("--------------------------------------------------\n")
+	fmt.Println("--------------------------------------------------")
+	fmt.Print("\n")
 
 	const noGroup string = "---no-group---"
 	var lastGroup string
