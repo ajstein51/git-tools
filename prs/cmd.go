@@ -9,7 +9,6 @@ import (
 
 	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/shurcooL-graphql"
 	"github.com/spf13/cobra"
 )
@@ -106,7 +105,7 @@ func SetupPrsCommand() *cobra.Command {
 	return cmd
 }
 
-func fetchRecentMergedPRsPage(client *api.GraphQLClient, owner, repo, baseBranch string, afterCursor *graphql.String) ([]PR, models.PageInfo, error) {
+func fetchRecentMergedPRsPage(client models.GQLClient, owner, repo, baseBranch string, afterCursor *graphql.String) ([]PR, models.PageInfo, error) {
 	var query struct {
 		Repository struct {
 			PullRequests struct {

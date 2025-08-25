@@ -7,7 +7,6 @@ import (
 
 	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/shurcooL-graphql"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +26,12 @@ func SetupProjectsCommand() *cobra.Command {
 			}
 
 			if projectNumber == 0 {
-				num, err := getLastProjectNumber(repoOwner, repoName)
+				client, err := utils.GetGhGraphQLClient()
+				if err != nil {
+					return fmt.Errorf("failed to create GraphQL client: %w", err)
+				}
+
+				num, err := getLastProjectNumber(client, repoOwner, repoName)
 				if err != nil {
 					return fmt.Errorf("failed to get last project number: %w", err)
 				}
@@ -51,7 +55,12 @@ func SetupProjectsCommand() *cobra.Command {
 		Use:   "all",
 		Short: "List all issues/cards in the project",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listProjectCards(repoOwner, repoName, projectNumber, nil, groupByField)
+			client, err := utils.GetGhGraphQLClient()
+			if err != nil {
+				return fmt.Errorf("failed to create GraphQL client: %w", err)
+			}
+
+			return listProjectCards(client, repoOwner, repoName, projectNumber, nil, groupByField)
 		},
 	}
 
@@ -71,7 +80,12 @@ func SetupProjectsCommand() *cobra.Command {
 				return item.Content.Typename == "DraftIssue"
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
+			client, err := utils.GetGhGraphQLClient()
+			if err != nil {
+				return fmt.Errorf("failed to create GraphQL client: %w", err)
+			}
+
+			return listProjectCards(client, repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -91,7 +105,12 @@ func SetupProjectsCommand() *cobra.Command {
 				return false
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
+			client, err := utils.GetGhGraphQLClient()
+			if err != nil {
+				return fmt.Errorf("failed to create GraphQL client: %w", err)
+			}
+
+			return listProjectCards(client, repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -114,8 +133,13 @@ func SetupProjectsCommand() *cobra.Command {
 
 				return false
 			}
+			
+			client, err := utils.GetGhGraphQLClient()
+			if err != nil {
+				return fmt.Errorf("failed to create GraphQL client: %w", err)
+			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
+			return listProjectCards(client, repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -152,7 +176,12 @@ func SetupProjectsCommand() *cobra.Command {
 				return false
 			}
 
-			return listProjectCards(repoOwner, repoName, projectNumber, filter, groupByField)
+			client, err := utils.GetGhGraphQLClient()
+			if err != nil {
+				return fmt.Errorf("failed to create GraphQL client: %w", err)
+			}
+
+			return listProjectCards(client, repoOwner, repoName, projectNumber, filter, groupByField)
 		},
 	}
 
@@ -164,12 +193,7 @@ func SetupProjectsCommand() *cobra.Command {
 	return cmd
 }
 
-func getLastProjectNumber(owner, repo string) (int, error) {
-	client, err := utils.GetGhGraphQLClient()
-	if err != nil {
-		return 0, err
-	}
-
+func getLastProjectNumber(client models.GQLClient, owner, repo string) (int, error) {
 	var query struct {
 		Organization struct {
 			ProjectsV2 struct {
@@ -223,11 +247,7 @@ func getLastProjectNumber(owner, repo string) (int, error) {
 	return repoProject.Number, nil
 }
 
-func listProjectCards(owner, repo string, projectNumber int, filter func(ProjectItem) bool, groupByField string) error {
-	client, err := utils.GetGhGraphQLClient()
-	if err != nil {
-		return err
-	}
+func listProjectCards(client models.GQLClient, owner, repo string, projectNumber int, filter func(ProjectItem) bool, groupByField string) error {
 
 	allItems, projectTitle, err := fetchProjectData(client, owner, repo, projectNumber, groupByField)
 	if err != nil {
@@ -241,7 +261,7 @@ func listProjectCards(owner, repo string, projectNumber int, filter func(Project
 	return nil
 }
 
-func fetchProjectData(client *api.GraphQLClient, owner, repo string, projectNumber int, groupByField string) ([]ProjectItem, string, error) {
+func fetchProjectData(client models.GQLClient, owner, repo string, projectNumber int, groupByField string) ([]ProjectItem, string, error) {
 	var allItems []ProjectItem
 	var projectTitle string
 	var foundProject bool

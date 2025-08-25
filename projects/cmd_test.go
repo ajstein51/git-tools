@@ -4,15 +4,37 @@ package projects
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/astein-peddi/git-tooling/models"
 	"github.com/cli/shurcooL-graphql"
 	"github.com/stretchr/testify/assert"
 )
+
+type mockGQLClient struct {
+	mockResponse any
+	mockErr      error
+}
+
+func (m *mockGQLClient) Query(queryName string, response any, variables map[string]any) error {
+	if m.mockErr != nil {
+		return m.mockErr
+	}
+
+	val := reflect.ValueOf(response)
+	if val.Kind() != reflect.Ptr {
+		return fmt.Errorf("response must be a pointer")
+	}
+	val.Elem().Set(reflect.ValueOf(m.mockResponse).Elem())
+
+	return nil
+}
 
 func newTestPR(number int, title string, mergedAt *string, reviewerLogins ...string) PullRequestFragment {
 	pr := PullRequestFragment{
@@ -322,7 +344,6 @@ func TestGetLinkedPRs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			actual := getLinkedPRs(tc.item)
-			// assert.Equal doesn't work well with slices of structs, so we check len and contents.
 			assert.Len(t, actual, len(tc.expected))
 			for i := range actual {
 				assert.Equal(t, tc.expected[i].Number, actual[i].Number)
@@ -344,10 +365,9 @@ func TestProcessProjectItems(t *testing.T) {
 		prOpen.withCustomField("In Progress"),
 		issueWithPR.withCustomField("In Progress"),
 		issueNoPR.withCustomField("Todo"),
-		draft.withCustomField(""), // Empty custom field
+		draft.withCustomField(""), 
 	}
 
-	// Define filters from the command setup
 	noPRFilter := func(item ProjectItem) bool {
 		if item.Content.Typename == "PullRequest" {
 			return false
@@ -373,7 +393,7 @@ func TestProcessProjectItems(t *testing.T) {
 		items          []ProjectItem
 		filter         func(ProjectItem) bool
 		groupByField   string
-		expectedTitles []string // We check titles to verify filtering and sorting
+		expectedTitles []string 
 	}{
 		{
 			name:           "No filter, no group by (sorted by type and number)",
@@ -444,6 +464,7 @@ func TestDisplayProjectItems(t *testing.T) {
 			expectedLines: []string{
 				"Project #42 - Test Project",
 				"--------------------------------------------------",
+				"",
 				"PR #102: Open PR",
 				"Issue #1: My Issue",
 				"Draft: A draft",
@@ -455,8 +476,8 @@ func TestDisplayProjectItems(t *testing.T) {
 			expectedLines: []string{
 				"Project #42 - Test Project",
 				"--------------------------------------------------",
+				"",
 				"[In Progress] PR #102: Open PR",
-				// Expect a blank line between groups
 				"",
 				"[Todo] Issue #1: My Issue",
 				"[Todo] Draft: A draft",
@@ -466,14 +487,12 @@ func TestDisplayProjectItems(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Capture stdout
 			old := os.Stdout
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
 			displayProjectItems(items, 42, "Test Project", tc.groupByField)
 
-			// Restore stdout
 			w.Close()
 			os.Stdout = old
 			var buf bytes.Buffer
@@ -482,7 +501,6 @@ func TestDisplayProjectItems(t *testing.T) {
 			output := strings.TrimSpace(buf.String())
 			expectedOutput := strings.Join(tc.expectedLines, "\n")
 
-			// Normalize line endings for cross-platform compatibility
 			normalizedOutput := strings.ReplaceAll(output, "\r\n", "\n")
 
 			assert.Equal(t, expectedOutput, normalizedOutput)
@@ -490,20 +508,105 @@ func TestDisplayProjectItems(t *testing.T) {
 	}
 }
 
-// --- Tests for API-dependent functions ---
-
 func TestGetLastProjectNumber(t *testing.T) {
-	t.Skip(`Skipping due to direct dependency on utils.GetGhGraphQLClient(). 
-To test this, the function should be refactored to accept a GraphQL client interface, 
-allowing a mock client to be injected during tests.`)
+	t.Run("Org project is newer", func(t *testing.T) {
+		mockResponse := &struct {
+			Organization struct {
+				ProjectsV2 struct {
+					Nodes []struct {
+						Number    int
+						CreatedAt time.Time
+					}
+				} `graphql:"projectsV2(first: 1, orderBy: {field: CREATED_AT, direction: DESC})"`
+			} `graphql:"organization(login: $owner)"`
+			Repository   struct {
+				ProjectsV2 struct {
+					Nodes []struct {
+						Number    int
+						CreatedAt time.Time
+					}
+				} `graphql:"projectsV2(first: 1, orderBy: {field: CREATED_AT, direction: DESC})"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{}
+		mockResponse.Organization.ProjectsV2.Nodes = []struct {
+			Number    int
+			CreatedAt time.Time
+		}{{Number: 10, CreatedAt: time.Now()}}
+		mockResponse.Repository.ProjectsV2.Nodes = []struct {
+			Number    int
+			CreatedAt time.Time
+		}{{Number: 5, CreatedAt: time.Now().Add(-time.Hour)}}
+
+		mockClient := &mockGQLClient{mockResponse: mockResponse}
+
+		num, err := getLastProjectNumber(mockClient, "my-org", "my-repo")
+
+		assert.NoError(t, err)
+		assert.Equal(t, 10, num)
+	})
+
+	t.Run("Client returns an error", func(t *testing.T) {
+		mockClient := &mockGQLClient{mockErr: fmt.Errorf("API rate limit exceeded")}
+
+		_, err := getLastProjectNumber(mockClient, "my-org", "my-repo")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "API rate limit exceeded")
+	})
+
+	t.Run("No projects found", func(t *testing.T) {
+		mockClient := &mockGQLClient{mockResponse: &struct {
+			Organization struct {
+				ProjectsV2 struct{ Nodes []struct{ Number int; CreatedAt time.Time } } `graphql:"projectsV2(first: 1, orderBy: {field: CREATED_AT, direction: DESC})"`
+			} `graphql:"organization(login: $owner)"`
+			Repository   struct {
+				ProjectsV2 struct{ Nodes []struct{ Number int; CreatedAt time.Time } } `graphql:"projectsV2(first: 1, orderBy: {field: CREATED_AT, direction: DESC})"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}{}} // Empty response
+
+		_, err := getLastProjectNumber(mockClient, "my-org", "my-repo")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no projects found")
+	})
 }
 
 func TestFetchProjectData(t *testing.T) {
-	t.Skip(`Skipping due to direct dependency on an api.GraphQLClient instance.
-To test this, this function should accept a client interface.
-Test cases would include:
-- Finding a project in the organization.
-- Finding a project in the repository.
-- Handling pagination correctly.
-- Returning an error when the project is not found in either.`)
+	t.Run("Successfully finds org project", func(t *testing.T) {
+		mockOrgQueryResponse := &struct {
+			Organization struct {
+				ProjectV2 *struct {
+					Title string
+					Items struct {
+						Nodes    []ProjectItem
+						PageInfo models.PageInfo
+					} `graphql:"items(first: 100, after: $after)"`
+				} `graphql:"projectV2(number: $number)"`
+			} `graphql:"organization(login: $owner)"`
+		}{}
+		mockOrgQueryResponse.Organization.ProjectV2 = &struct {
+			Title string
+			Items struct {
+				Nodes    []ProjectItem
+				PageInfo models.PageInfo
+			} `graphql:"items(first: 100, after: $after)"`
+		}{
+			Title: "My Org Project",
+			Items: struct {
+				Nodes    []ProjectItem
+				PageInfo models.PageInfo
+			}{
+				Nodes: []ProjectItem{newTestItemWithDraft("Test Draft")},
+			},
+		}
+
+		mockClient := &mockGQLClient{mockResponse: mockOrgQueryResponse}
+
+		items, title, err := fetchProjectData(mockClient, "my-org", "my-repo", 1, "")
+
+		assert.NoError(t, err)
+		assert.Equal(t, "My Org Project", title)
+		assert.Len(t, items, 1)
+		assert.Equal(t, "Test Draft", items[0].Content.DraftIssue.Title)
+	})
 }
