@@ -12,7 +12,7 @@ func IsInsideGitRepository() bool {
 	if err := checkCmd.Run(); err != nil {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -35,6 +35,7 @@ func GetBranchNames() []string {
 			branches = append(branches, line)
 		}
 	}
+
 	return branches
 }
 
@@ -46,6 +47,10 @@ func GetRepoOwnerAndName() (string, string, error) {
 
 	rawURL := strings.TrimSpace(string(out))
 
+	return parseGitRemoteURL(rawURL)
+}
+
+func parseGitRemoteURL(rawURL string) (string, string, error) {
 	if strings.HasPrefix(rawURL, "git@") {
 		parts := strings.SplitN(rawURL, ":", 2)
 		if len(parts) != 2 {

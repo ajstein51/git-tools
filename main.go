@@ -31,3 +31,4 @@ func main() {
 
 // debug build: go build -o peddi-tooling.exe ./main.go
 // release build: go build -ldflags="-s -w" -o peddi-tooling.exe ./main.go
+// run tests: go test ./... -v
