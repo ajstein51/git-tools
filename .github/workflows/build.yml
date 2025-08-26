@@ -23,8 +23,17 @@ jobs:
       - name: Build the application
         run: go build -v -ldflags="-s -w" -o peddi-tooling.exe ./main.go
 
-      - name: Upload artifact
+      - name: Build installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          choco install innosetup -y
+          ISCC.exe installer/peddi-tooling.iss
+
+      - name: Upload artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: peddi-tooling-windows-exe
-          path: peddi-tooling.exe
+          name: peddi-tooling-artifacts
+          path: |
+            peddi-tooling.exe
+            installer/output/peddi-tooling-installer.exe
