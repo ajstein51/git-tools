@@ -16,6 +16,28 @@ func IsInsideGitRepository() bool {
 	return true
 }
 
+func DoesBranchExist(branch string, localOnly bool) bool {
+	if !IsInsideGitRepository() {
+		return false
+	}
+
+	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	if err := cmd.Run(); err == nil {
+		return true
+	}
+
+	if localOnly {
+		return false
+	}
+
+	exists, err := DoesGhBranchExistGraphQL(branch)
+	if err != nil {
+		return false
+	}
+
+	return exists
+}
+
 func GetBranchNames() []string {
 	if !IsInsideGitRepository() {
 		return []string{}

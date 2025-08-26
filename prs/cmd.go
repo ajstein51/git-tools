@@ -21,10 +21,32 @@ func SetupPrsCommand() *cobra.Command {
 		Use:   "prs <branchA> <branchB>",
 		Short: "List PRs merged into branchA that are not in branchB",
 		Args:  cobra.ExactArgs(2),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if !utils.IsInsideGitRepository() {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+
+			allBranches := utils.GetBranchNames()
+			var matches []string
+			for _, b := range allBranches {
+				if strings.HasPrefix(b, toComplete) {
+					matches = append(matches, b)
+				}
+			}
+
+			return matches, cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branchA := args[0]
 			branchB := args[1]
 			isLocal := cmd.Flags().Lookup("local").Value.String() == "true"
+
+			if !utils.DoesBranchExist(branchA, isLocal) {
+				return fmt.Errorf("branch '%s' does not exist or is not accessible", branchA)
+			}
+			if !utils.DoesBranchExist(branchB, isLocal) {
+				return fmt.Errorf("branch '%s' does not exist or is not accessible", branchB)
+			}
 
 			owner, repo, err := utils.GetRepoOwnerAndName()
 			if err != nil {
