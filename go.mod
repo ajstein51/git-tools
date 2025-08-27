@@ -7,6 +7,7 @@ require (
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/term v0.30.0
 )
 
 require (
@@ -24,7 +25,6 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/thlib/go-timezone-local v0.0.0-20210907160436-ef149e42d28e // indirect
 	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

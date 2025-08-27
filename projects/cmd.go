@@ -282,10 +282,7 @@ func fetchProjectData(client models.GQLClient, owner, repo string, projectNumber
 		"owner":  graphql.String(owner),
 		"number": graphql.Int(projectNumber),
 		"after":  (*graphql.String)(nil),
-	}
-
-	if groupByField != "" {
-		orgVariables["fieldName"] = graphql.String(groupByField)
+		"fieldName": graphql.String(groupByField),
 	}
 
 	if err := client.Query("OrgProjectItems", &orgQuery, orgVariables); err == nil && orgQuery.Organization.ProjectV2 != nil {
