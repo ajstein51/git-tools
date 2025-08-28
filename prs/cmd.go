@@ -13,6 +13,8 @@ import (
 	"golang.org/x/term"
 )
 
+var pullRequestRegex = regexp.MustCompile(`\(#(\d+)\)`)
+
 func SetupPrsCommand() *cobra.Command {
 	var limit int
 	var pageSize int
@@ -167,6 +169,8 @@ func fetchCommitsInBranch(client models.GQLClient, owner, repo, branch string, l
 	var cursor *string
 	count := 0
 
+	fmt.Fprintf(os.Stderr, "Scanning commits on '%s': ", branch)
+
 	for {
 		var query struct {
 			Repository struct {
@@ -200,6 +204,12 @@ func fetchCommitsInBranch(client models.GQLClient, owner, repo, branch string, l
 			return nil, fmt.Errorf("failed to fetch commits in branch: %w", err)
 		}
 
+		fmt.Fprint(os.Stderr, ".")
+
+		if len(query.Repository.Ref.Target.Commit.History.Edges) == 0 {
+			break
+		}
+
 		for _, edge := range query.Repository.Ref.Target.Commit.History.Edges {
 			commits = append(commits, Commit{
 				Oid:     edge.Node.Oid,
@@ -208,6 +218,8 @@ func fetchCommitsInBranch(client models.GQLClient, owner, repo, branch string, l
 			count++
 
 			if limit > 0 && count >= limit {
+				fmt.Fprintln(os.Stderr)
+
 				return commits, nil
 			}
 		}
@@ -218,6 +230,8 @@ func fetchCommitsInBranch(client models.GQLClient, owner, repo, branch string, l
 
 		cursor = &query.Repository.Ref.Target.Commit.History.PageInfo.EndCursor
 	}
+
+	fmt.Fprintln(os.Stderr)
 
 	return commits, nil
 }
@@ -248,8 +262,7 @@ func fetchPRsForBranch(client models.GQLClient, owner, repo, branch string, limi
 }
 
 func extractPRNumber(message string) (int, bool) {
-	re := regexp.MustCompile(`\(#(\d+)\)`)
-	matches := re.FindStringSubmatch(message)
+	matches := pullRequestRegex.FindStringSubmatch(message)
 
 	if len(matches) == 2 {
 		var num int
