@@ -1,15 +1,22 @@
 package projects
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/astein-peddi/git-tooling/loader"
 	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/cli/shurcooL-graphql"
 	"github.com/spf13/cobra"
 )
+
+type projectDataResult struct {
+	items []ProjectItem
+	title string
+}
 
 func SetupProjectsCommand() *cobra.Command {
 	var projectNumber int
@@ -20,46 +27,96 @@ func SetupProjectsCommand() *cobra.Command {
 		Short: "Manage GitHub Projects",
 		Long:  "Commands to list and filter issues/cards from GitHub Projects",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) (err error) {
+			if cmd.Flags().Changed("help") {
+				return nil
+			}
+			if !utils.IsInsideGitRepository() {
+				return fmt.Errorf("this command must be run from inside a Git repository")
+			}
 			repoOwner, repoName, err = utils.GetRepoOwnerAndName()
 			if err != nil {
 				return fmt.Errorf("failed to get repository details: %w", err)
 			}
 			if projectNumber == 0 {
-				client, err := utils.GetGhGraphQLClient()
-				if err != nil {
-					return fmt.Errorf("failed to create GraphQL client: %w", err)
+				task := func() (interface{}, error) {
+					client, err := utils.GetGhGraphQLClient()
+					if err != nil {
+						return 0, err
+					}
+					return getLastProjectNumber(client, repoOwner, repoName)
 				}
-				num, err := getLastProjectNumber(client, repoOwner, repoName)
+
+				result, err := loader.Run("Fetching latest project ID", task)
 				if err != nil {
 					return fmt.Errorf("failed to get last project number: %w", err)
 				}
-				projectNumber = num
+
+				projectNumber = result.(int)
 			}
+
 			return nil
 		},
 	}
 
 	cmd.PersistentFlags().IntVar(&projectNumber, "id", 0, "Project number (defaults to last project)")
 	cmd.PersistentFlags().StringVar(&groupByField, "groupBy", "", "Group by a custom field (e.g., 'Priority')")
+	cmd.PersistentFlags().Bool("json", false, "Output results in JSON format")
 
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "Commands to list items from a project",
 	}
 
-	// --- list all ---
+		runListCommand := func(cmd *cobra.Command, filter itemFilter) error {
+		jsonOutput, _ := cmd.Flags().GetBool("json")
+
+		task := func() (interface{}, error) {
+			client, err := utils.GetGhGraphQLClient()
+			if err != nil {
+				return nil, err
+			}
+
+			allItems, projectTitle, err := fetchProjectData(client, repoOwner, repoName, projectNumber, groupByField)
+			if err != nil {
+				return nil, err
+			}
+
+			processedItems := processProjectItems(allItems, filter, groupByField)
+			return projectDataResult{items: processedItems, title: projectTitle}, nil
+		}
+
+		result, err := loader.Run("Fetching project items", task)
+		if err != nil {
+			return err
+		}
+
+		data := result.(projectDataResult)
+
+		if jsonOutput {
+			jsonData, err := json.MarshalIndent(data.items, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal results to JSON: %w", err)
+			}
+
+			fmt.Println(string(jsonData))
+
+			return nil
+		}
+
+		p := tea.NewProgram(initialModel(repoOwner, repoName, data.title, data.items, groupByField), tea.WithAltScreen())
+		_, err = p.Run()
+
+		return err
+	}
+
 	listAllCmd := &cobra.Command{
 		Use:   "all",
 		Short: "List all issues/cards in the project",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			p := tea.NewProgram(initialModel(repoOwner, repoName, projectNumber, groupByField, nil))
-			_, err := p.Run()
-			
-			return err
+			return runListCommand(cmd, nil)
 		},
 	}
 
-	// --- list no-pr ---
 	listNoPRCmd := &cobra.Command{
 		Use:   "no-pr",
 		Short: "List items with no associated PR",
@@ -71,18 +128,14 @@ func SetupProjectsCommand() *cobra.Command {
 				if item.Content.Typename == "Issue" {
 					return len(getLinkedPRs(item)) == 0
 				}
-
+				
 				return item.Content.Typename == "DraftIssue"
 			}
-			
-			p := tea.NewProgram(initialModel(repoOwner, repoName, projectNumber, groupByField, filter))
-			_, err := p.Run()
-			
-			return err
+
+			return runListCommand(cmd, filter)
 		},
 	}
 
-	// --- list with-pr ---
 	listPRCmd := &cobra.Command{
 		Use:   "with-pr",
 		Short: "List items that have an associated PR",
@@ -94,18 +147,12 @@ func SetupProjectsCommand() *cobra.Command {
 				if item.Content.Typename == "Issue" {
 					return len(getLinkedPRs(item)) > 0
 				}
-
 				return false
 			}
-
-			p := tea.NewProgram(initialModel(repoOwner, repoName, projectNumber, groupByField, filter))
-			_, err := p.Run()
-
-			return err
+			return runListCommand(cmd, filter)
 		},
 	}
 
-	// --- list pr-not-merged ---
 	listPRNotMergedCmd := &cobra.Command{
 		Use:   "pr-not-merged",
 		Short: "List items with an unmerged PR",
@@ -125,14 +172,10 @@ func SetupProjectsCommand() *cobra.Command {
 				return false
 			}
 
-			p := tea.NewProgram(initialModel(repoOwner, repoName, projectNumber, groupByField, filter))
-			_, err := p.Run()
-
-			return err
+			return runListCommand(cmd, filter)
 		},
 	}
 
-	// --- list reviewer ---
 	listReviewerCmd := &cobra.Command{
 		Use:   "reviewer",
 		Short: "List items where you or a specified user is a reviewer",
@@ -164,11 +207,8 @@ func SetupProjectsCommand() *cobra.Command {
 
 				return false
 			}
-			
-			p := tea.NewProgram(initialModel(repoOwner, repoName, projectNumber, groupByField, filter))
-			_, err := p.Run()
-			
-			return err
+
+			return runListCommand(cmd, filter)
 		},
 	}
 
@@ -211,25 +251,21 @@ func getLastProjectNumber(client models.GQLClient, owner, repo string) (int, err
 
 	orgProjectExists := len(query.Organization.ProjectsV2.Nodes) > 0
 	repoProjectExists := len(query.Repository.ProjectsV2.Nodes) > 0
-
 	if !orgProjectExists && !repoProjectExists {
 		return 0, fmt.Errorf("no projects found in organization or repository for '%s/%s'", owner, repo)
 	}
-
 	if orgProjectExists && !repoProjectExists {
 		return query.Organization.ProjectsV2.Nodes[0].Number, nil
 	}
-
 	if !orgProjectExists && repoProjectExists {
 		return query.Repository.ProjectsV2.Nodes[0].Number, nil
 	}
 
 	orgProject := query.Organization.ProjectsV2.Nodes[0]
 	repoProject := query.Repository.ProjectsV2.Nodes[0]
-
 	if orgProject.CreatedAt.After(repoProject.CreatedAt) {
 		return orgProject.Number, nil
 	}
-
+	
 	return repoProject.Number, nil
 }
