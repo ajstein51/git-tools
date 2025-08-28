@@ -5,16 +5,16 @@ import (
 
 	"github.com/astein-peddi/git-tooling/theme"
 	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 )
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return tea.WindowSize()
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 		case tea.WindowSizeMsg:
@@ -56,13 +56,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	if m.table.Columns() == nil {
 		return "Initializing..."
 	}
 
 	var footer string
-	helpText := "(↑/↓ to move, Enter to open, q to quit)"
+	helpText := "(↑/↓ to move or vim motions, Enter to open, q to quit)"
 
 	if len(m.items) > 0 {
 		totalItems := len(m.items)
@@ -83,8 +83,8 @@ func (m model) View() string {
 	)
 }
 
-func initialModel(owner, repo, title string, items []ProjectItem, groupBy string) model {
-	return model{
+func initialModel(owner, repo, title string, items []ProjectItem, groupBy string) Model {
+	return Model {
 		repoOwner:    owner,
 		repoName:     repo,
 		projectTitle: title,

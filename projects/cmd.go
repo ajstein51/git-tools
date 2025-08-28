@@ -67,7 +67,7 @@ func SetupProjectsCommand() *cobra.Command {
 		Short: "Commands to list items from a project",
 	}
 
-		runListCommand := func(cmd *cobra.Command, filter itemFilter) error {
+		runListCommand := func(cmd *cobra.Command, filter ItemFilter) error {
 		jsonOutput, _ := cmd.Flags().GetBool("json")
 
 		task := func() (interface{}, error) {

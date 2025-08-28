@@ -101,7 +101,7 @@ func fetchProjectData(client models.GQLClient, owner, repo string, projectNumber
 	return nil, "", fmt.Errorf("failed to find project #%d. Please check the project ID and your permissions", projectNumber)
 }
 
-func processProjectItems(items []ProjectItem, filter itemFilter, groupByField string) []ProjectItem {
+func processProjectItems(items []ProjectItem, filter ItemFilter, groupByField string) []ProjectItem {
 	var filteredItems []ProjectItem
 	for _, item := range items {
 		if filter == nil || filter(item) {
