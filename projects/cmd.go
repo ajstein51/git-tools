@@ -61,6 +61,7 @@ func SetupProjectsCommand() *cobra.Command {
 	cmd.PersistentFlags().IntVar(&projectNumber, "id", 0, "Project number (defaults to last project)")
 	cmd.PersistentFlags().StringVar(&groupByField, "groupBy", "", "Group by a custom field (e.g., 'Priority')")
 	cmd.PersistentFlags().Bool("json", false, "Output results in JSON format")
+	cmd.PersistentFlags().Bool("unformatted", false, "Output results in unformatted mode")
 
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -69,6 +70,7 @@ func SetupProjectsCommand() *cobra.Command {
 
 		runListCommand := func(cmd *cobra.Command, filter ItemFilter) error {
 		jsonOutput, _ := cmd.Flags().GetBool("json")
+		unformattedOutput, _ := cmd.Flags().GetBool("unformatted")
 
 		task := func() (any, error) {
 			client, err := utils.GetGhGraphQLClient()
@@ -91,6 +93,18 @@ func SetupProjectsCommand() *cobra.Command {
 		}
 
 		data := result.(projectDataResult)
+
+		if unformattedOutput {
+			fmt.Printf("Project: %s\n\n", data.title)
+
+			for _, item := range data.items {
+				fmt.Printf("%d - %s\n", item.Content.PR.Number, item.Content.PR.Title)
+			}
+
+			fmt.Println()
+
+			return nil
+		}
 
 		if jsonOutput {
 			jsonData, err := json.MarshalIndent(data.items, "", "  ")
