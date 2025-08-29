@@ -60,7 +60,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return fmt.Sprintf("\n %s %s...\n", m.spinner.View(), m.message)
+	return fmt.Sprintf("\n %s %s...\n\n", m.spinner.View(), m.message)
 }
 
 func Run(message string, task func() (any, error)) (any, error) {
