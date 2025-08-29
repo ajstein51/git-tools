@@ -107,13 +107,35 @@ peddi-tooling projects list reviewer --name other-github-username
 ### Pull Requests (prs)
 The prs command is designed to compare the state of two branches to understand what work is pending release.
 
-Command: 
+
+Finds all pull requests that have been merged into branchA but whose changes are not yet present in branchB. It fetches the most recent PRs first and interactively prompts you to load more pages if necessary.
 
 ```sh
 peddi-tooling prs <branchA> <branchB>
 ```
 
-This command will find all pull requests that have been merged into <branchA> but whose changes are not yet present in <branchB>. It fetches the most recent PRs first and interactively prompts you to load more pages if necessary.
+#### Available Subcommands:
+
+#### limit
+Limit the amount of commits to scan through. This starts from the most recent commits.
+
+```Sh
+peddi-tooling prs <branchA> <branchB> --page-size 1
+```
+
+#### local
+Use local branches only
+
+```Sh
+peddi-tooling prs <branchA> <branchB> --page-size 1
+```
+
+#### page-size
+Limits the quantity of prs displayed
+
+```Sh
+peddi-tooling prs <branchA> <branchB> --page-size 1
+```
 
 Example:
 
@@ -129,6 +151,6 @@ Example Output:
 Comparing recent PRs merged into 'dev' that are not yet in 'main'...
 
 #402: Add new feature for production (https://github.com/org/repo/pull/402)
-#398: Fix critical bug in API (https://github.com/org/repo/pull/398)
 
---- Press Enter for next page, or q to quit:
+-- Showing 1-1 of 3. Use 'h' to navigate left, 'l' to navigate right, 'q' to quit --
+```

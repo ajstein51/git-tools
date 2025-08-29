@@ -19,7 +19,6 @@ func getProjectRoot() (string, error) {
 		if _, err := os.Stat(gitDir); err == nil {
 			return wd, nil 
 		}
-		// Move up one directory
 		parent := filepath.Dir(wd)
 		if parent == wd {
 			return "", errors.New("not a git repository")
@@ -28,7 +27,6 @@ func getProjectRoot() (string, error) {
 	}
 }
 
-// --- UNIT TEST ---
 func TestParseGitRemoteURL(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -109,8 +107,6 @@ func TestParseGitRemoteURL(t *testing.T) {
 	}
 }
 
-
-// --- INTEGRATION TESTS ---
 func TestIsInsideGitRepository_Integration(t *testing.T) {
 	_, err := getProjectRoot()
 	if err != nil {
