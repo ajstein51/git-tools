@@ -39,6 +39,7 @@ func SetupPrsCommand() *cobra.Command {
 			branchB := args[1]
 			isLocal, _ := cmd.Flags().GetBool("local")
 			jsonOutput, _ := cmd.Flags().GetBool("json")
+			unformattedOutput, _ := cmd.Flags().GetBool("unformatted")
 
 			if isLocal {
 				return fmt.Errorf("local mode is not yet implemented")
@@ -118,6 +119,16 @@ func SetupPrsCommand() *cobra.Command {
 
 			finalPRs := result.([]models.PR)
 
+			if unformattedOutput {
+				for _, pr := range finalPRs {
+					fmt.Printf("%d - %s\n", pr.Number, pr.Title)
+				}
+
+				fmt.Println()
+
+				return nil
+			}
+
 			if jsonOutput {
 				jsonData, err := json.MarshalIndent(finalPRs, "", "  ")
 				if err != nil {
@@ -137,6 +148,7 @@ func SetupPrsCommand() *cobra.Command {
 	cmd.Flags().BoolP("local", "l", false, "Compare local branches")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Max number of commits to scan per branch (0=all)")
 	cmd.Flags().Bool("json", false, "Output results in JSON format")
+	cmd.Flags().Bool("unformatted", false, "Output results in unformatted mode")
 
 	return cmd
 }
