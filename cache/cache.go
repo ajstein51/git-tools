@@ -11,7 +11,7 @@ import (
 	"github.com/astein-peddi/git-tooling/models"
 )
 
-type prCacheData map[string][]int
+type prCacheData map[string][]models.PR
 
 type Fetcher func(client models.GQLClient, owner, repo, branch string, limit int) ([]models.PR, error)
 type HashGetter func(branchRef string) (string, error)
@@ -34,13 +34,7 @@ func FetchPRsWithCache(client models.GQLClient, owner, repo, branch string, limi
 	}
 
 	cacheKey := fmt.Sprintf("%s/%s:%s@%s", owner, repo, branch, hash)
-	if prNumbers, found := cache[cacheKey]; found {
-		// fmt.Fprintf(os.Stderr, "Cache hit for branch '%s'. Loading %d PRs instantly.\n", branch, len(prNumbers))
-		var cachedPRs []models.PR
-		for _, num := range prNumbers {
-			cachedPRs = append(cachedPRs, models.PR{Number: num})
-		}
-
+	if cachedPRs, found := cache[cacheKey]; found {
 		return cachedPRs, nil
 	}
 
@@ -56,12 +50,7 @@ func FetchPRsWithCache(client models.GQLClient, owner, repo, branch string, limi
 		}
 	}
 
-	var prNumbers []int
-	for _, pr := range livePRs {
-		prNumbers = append(prNumbers, pr.Number)
-	}
-
-	cache[cacheKey] = prNumbers
+	cache[cacheKey] = livePRs
 	if err := saveCache(cache, pathGetter); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to save cache: %v\n", err)
 	}
