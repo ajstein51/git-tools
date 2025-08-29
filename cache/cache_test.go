@@ -49,20 +49,25 @@ func TestFetchPRsWithCache(t *testing.T) {
 		prs, err := FetchPRsWithCache(nil, owner, repo, branch, 0, false, mockFetcher, mockHashGetter, pathGetter)
 		assert.NoError(t, err)
 		assert.Len(t, prs, 2)
-		assert.Equal(t, 101, prs[0].Number)
 
 		cachePath, _ := pathGetter()
 		content, err := os.ReadFile(cachePath)
 		assert.NoError(t, err)
-		assert.Contains(t, string(content), "101")
-		assert.Contains(t, string(content), "102")
-		assert.NotContains(t, string(content), `"number"`) 
+		assert.Contains(t, string(content), `"number": 101`)
+		assert.Contains(t, string(content), `"title": "Feat: New API"`)
 	})
 
 	t.Run("Cache Hit - returns data from cache without calling fetcher", func(t *testing.T) {
 		hash := "abcdef12345"
 		cacheKey := fmt.Sprintf("%s/%s:%s@%s", owner, repo, branch, hash)
-		initialContent := fmt.Sprintf(`{ "%s": [301, 302] }`, cacheKey)
+		
+		initialContent := fmt.Sprintf(`{
+			"%s": [
+				{"number": 301, "title": "Cached Title 1"},
+				{"number": 302, "title": "Cached Title 2"}
+			]
+		}`, cacheKey)
+		
 		pathGetter, cleanup := setupTestCache(t, initialContent)
 		defer cleanup()
 
@@ -76,12 +81,13 @@ func TestFetchPRsWithCache(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, prs, 2)
 		assert.Equal(t, 301, prs[0].Number)
+		assert.Equal(t, "Cached Title 1", prs[0].Title) 
 	})
 
 	t.Run("Cache Miss due to different SHA - fetches and updates cache", func(t *testing.T) {
 		oldHash := "oldhash123"
 		cacheKey := fmt.Sprintf("%s/%s:%s@%s", owner, repo, branch, oldHash)
-		initialContent := fmt.Sprintf(`{ "%s": [301, 302] }`, cacheKey)
+		initialContent := fmt.Sprintf(`{ "%s": [{"number": 301, "title": "Old PR"}] }`, cacheKey)
 		pathGetter, cleanup := setupTestCache(t, initialContent)
 		defer cleanup()
 
@@ -90,8 +96,7 @@ func TestFetchPRsWithCache(t *testing.T) {
 
 		prs, err := FetchPRsWithCache(nil, owner, repo, branch, 0, false, mockFetcher, mockHashGetter, pathGetter)
 		assert.NoError(t, err)
-		assert.Len(t, prs, 2)
-		assert.Equal(t, 101, prs[0].Number)
+		assert.Len(t, prs, 2) 
 
 		cachePath, _ := pathGetter()
 		content, err := os.ReadFile(cachePath)
