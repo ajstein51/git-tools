@@ -53,7 +53,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Result:
 		m.result = msg
 
-		return m, tea.Quit // We have the result, so we can quit.
+		return m, tea.Quit
 	}
 
 	return m, nil

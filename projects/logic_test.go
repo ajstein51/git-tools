@@ -101,12 +101,10 @@ func TestProcessProjectItems(t *testing.T) {
 	t.Run("Group by custom field", func(t *testing.T) {
 		processed := processProjectItems(allItems, nil, "Status")
 		assert.Len(t, processed, 5)
-		// Add assertions here to check the sorted order if needed
 	})
 	t.Run("Filter: no-pr", func(t *testing.T) {
 		processed := processProjectItems(allItems, noPRFilter, "")
 		assert.Len(t, processed, 2)
-		// Add assertions here to check the filtered items if needed
 	})
 }
 

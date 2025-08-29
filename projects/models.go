@@ -1,22 +1,10 @@
 package projects
 
 import (
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/cli/shurcooL-graphql"
 )
 
 type ItemFilter func(ProjectItem) bool
-
-type Model struct {
-	repoOwner    string
-	repoName     string
-	projectTitle string
-	groupByField string
-	items        []ProjectItem
-
-	table       table.Model
-	dividerRows map[int]bool
-}
 
 type PullRequestFragment struct {
 	Number   int

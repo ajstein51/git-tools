@@ -38,7 +38,7 @@ func SetupProjectsCommand() *cobra.Command {
 				return fmt.Errorf("failed to get repository details: %w", err)
 			}
 			if projectNumber == 0 {
-				task := func() (interface{}, error) {
+				task := func() (any, error) {
 					client, err := utils.GetGhGraphQLClient()
 					if err != nil {
 						return 0, err
@@ -70,7 +70,7 @@ func SetupProjectsCommand() *cobra.Command {
 		runListCommand := func(cmd *cobra.Command, filter ItemFilter) error {
 		jsonOutput, _ := cmd.Flags().GetBool("json")
 
-		task := func() (interface{}, error) {
+		task := func() (any, error) {
 			client, err := utils.GetGhGraphQLClient()
 			if err != nil {
 				return nil, err

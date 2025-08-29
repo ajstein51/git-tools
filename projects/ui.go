@@ -10,11 +10,22 @@ import (
 	"github.com/pkg/browser"
 )
 
-func (m Model) Init() tea.Cmd {
+type model struct {
+	repoOwner    string
+	repoName     string
+	projectTitle string
+	groupByField string
+	items        []ProjectItem
+
+	table       table.Model
+	dividerRows map[int]bool
+}
+
+func (m model) Init() tea.Cmd {
 	return tea.WindowSize()
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 		case tea.WindowSizeMsg:
@@ -56,13 +67,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() string {
+func (m model) View() string {
 	if m.table.Columns() == nil {
 		return "Initializing..."
 	}
 
 	var footer string
-	helpText := "(↑/↓ to move or vim motions, Enter to open, q to quit)"
+	helpText := "(↑/↓ to move or Vim Motions, Enter to open, q to quit)"
 
 	if len(m.items) > 0 {
 		totalItems := len(m.items)
@@ -83,8 +94,8 @@ func (m Model) View() string {
 	)
 }
 
-func initialModel(owner, repo, title string, items []ProjectItem, groupBy string) Model {
-	return Model {
+func initialModel(owner, repo, title string, items []ProjectItem, groupBy string) model {
+	return model {
 		repoOwner:    owner,
 		repoName:     repo,
 		projectTitle: title,
