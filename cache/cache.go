@@ -35,7 +35,7 @@ func FetchPRsWithCache(client models.GQLClient, owner, repo, branch string, limi
 
 	cacheKey := fmt.Sprintf("%s/%s:%s@%s", owner, repo, branch, hash)
 	if prNumbers, found := cache[cacheKey]; found {
-		fmt.Fprintf(os.Stderr, "Cache hit for branch '%s'. Loading %d PRs instantly.\n", branch, len(prNumbers))
+		// fmt.Fprintf(os.Stderr, "Cache hit for branch '%s'. Loading %d PRs instantly.\n", branch, len(prNumbers))
 		var cachedPRs []models.PR
 		for _, num := range prNumbers {
 			cachedPRs = append(cachedPRs, models.PR{Number: num})
