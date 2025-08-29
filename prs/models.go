@@ -1,9 +1,6 @@
 package prs
 
-type PR struct {
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-}
+import "github.com/astein-peddi/git-tooling/models"
 
 type Commit struct {
 	Oid     string
@@ -12,6 +9,6 @@ type Commit struct {
 
 type branchScanResult struct {
 	branchName string
-	prs        []PR
+	prs        []models.PR
 	err        error
 }

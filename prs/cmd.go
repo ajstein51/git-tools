@@ -6,7 +6,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/astein-peddi/git-tooling/cache"
 	"github.com/astein-peddi/git-tooling/loader"
+	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/utils"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -41,14 +43,14 @@ func SetupPrsCommand() *cobra.Command {
 			if isLocal {
 				return fmt.Errorf("local mode is not yet implemented")
 			}
-			
+
 			if !utils.DoesBranchExist(branchA, isLocal) {
 				return fmt.Errorf("branch '%s' does not exist", branchA)
 			}
 			if !utils.DoesBranchExist(branchB, isLocal) {
 				return fmt.Errorf("branch '%s' does not exist", branchB)
 			}
-			
+
 			owner, repo, err := utils.GetRepoOwnerAndName()
 			if err != nil {
 				return err
@@ -62,20 +64,27 @@ func SetupPrsCommand() *cobra.Command {
 
 				var wg sync.WaitGroup
 				resultsChan := make(chan branchScanResult, 2)
-				
+
 				for _, branch := range []string{branchA, branchB} {
 					wg.Add(1)
 					go func(b string) {
 						defer wg.Done()
-						prs, err := fetchPRsForBranch(client, owner, repo, b, limit)
+
+						prs, err := cache.FetchPRsWithCache(
+							client, owner, repo, b, limit, isLocal,
+							FetchPRsForBranch, 
+							cache.GetBranchHeadHash, 
+							cache.GetCachePath,      
+						)
+
 						resultsChan <- branchScanResult{branchName: b, prs: prs, err: err}
 					}(branch)
 				}
 
 				wg.Wait()
 				close(resultsChan)
-				
-				var branchAPrs, branchBPrs []PR
+
+				var branchAPrs, branchBPrs []models.PR
 				for result := range resultsChan {
 					if result.err != nil {
 						return nil, result.err
@@ -86,13 +95,13 @@ func SetupPrsCommand() *cobra.Command {
 						branchBPrs = result.prs
 					}
 				}
-				
+
 				branchBSet := make(map[int]bool)
 				for _, pr := range branchBPrs {
 					branchBSet[pr.Number] = true
 				}
 
-				var finalResults []PR
+				var finalResults []models.PR
 				for _, prA := range branchAPrs {
 					if !branchBSet[prA.Number] {
 						finalResults = append(finalResults, prA)
@@ -106,8 +115,8 @@ func SetupPrsCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			
-			finalPRs := result.([]PR)
+
+			finalPRs := result.([]models.PR)
 
 			if jsonOutput {
 				jsonData, err := json.MarshalIndent(finalPRs, "", "  ")
@@ -117,10 +126,10 @@ func SetupPrsCommand() *cobra.Command {
 				fmt.Println(string(jsonData))
 				return nil
 			}
-			
+
 			p := tea.NewProgram(initialModel(branchA, branchB, finalPRs), tea.WithAltScreen())
 			_, err = p.Run()
-			
+
 			return err
 		},
 	}

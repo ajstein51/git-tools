@@ -13,20 +13,20 @@ import (
 
 var pullRequestRegex = regexp.MustCompile(`\(#(\d+)\)`)
 
-func fetchPRsForBranch(client models.GQLClient, owner, repo, branch string, limit int) ([]PR, error) {
+func FetchPRsForBranch(client models.GQLClient, owner, repo, branch string, limit int) ([]models.PR, error) {
 	commits, err := fetchCommitsInBranch(client, owner, repo, branch, limit)
 	if err != nil {
 		return nil, err
 	}
 
 	seen := make(map[int]bool)
-	var prs []PR
+	var prs []models.PR
 
 	for _, commit := range commits {
 		if prNum, ok := extractPRNumber(commit.Message); ok {
 			if !seen[prNum] {
 				title := strings.SplitN(commit.Message, "\n", 2)[0]
-				prs = append(prs, PR{Number: prNum, Title: title})
+				prs = append(prs, models.PR{Number: prNum, Title: title})
 				seen[prNum] = true
 			}
 		}
@@ -69,14 +69,14 @@ func fetchCommitsInBranch(client models.GQLClient, owner, repo, branch string, l
 		}
 
 		if err := client.Query("CommitsInBranch", &query, variables); err != nil {
-			fmt.Fprintln(os.Stderr) 
+			fmt.Fprintln(os.Stderr)
 			return nil, fmt.Errorf("failed to fetch commits for branch '%s': %w", branch, err)
 		}
 
 		if (query.Repository.Ref.Target.Commit.History.Edges == nil) || (len(query.Repository.Ref.Target.Commit.History.Edges) == 0 && query.Repository.Ref.Target.Commit.History.PageInfo.EndCursor == "") {
-			break 
+			break
 		}
-		
+
 		edges := query.Repository.Ref.Target.Commit.History.Edges
 		if len(edges) == 0 {
 			break
@@ -112,6 +112,6 @@ func extractPRNumber(message string) (int, bool) {
 			return num, true
 		}
 	}
-	
+
 	return 0, false
 }

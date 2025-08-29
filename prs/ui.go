@@ -3,6 +3,7 @@ package prs
 import (
 	"fmt"
 
+	"github.com/astein-peddi/git-tooling/models"
 	"github.com/astein-peddi/git-tooling/theme"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbletea"
@@ -12,11 +13,11 @@ import (
 type model struct {
 	branchA string
 	branchB string
-	prs     []PR
+	prs     []models.PR
 	table   table.Model
 }
 
-func initialModel(branchA, branchB string, prs []PR) model {
+func initialModel(branchA, branchB string, prs []models.PR) model {
 	return model{
 		branchA: branchA,
 		branchB: branchB,
@@ -80,7 +81,7 @@ func (m model) View() string {
 	)
 }
 
-func setupTable(termWidth int, prs []PR) table.Model {
+func setupTable(termWidth int, prs []models.PR) table.Model {
 	numWidth := 10
 	padding := 8
 	titleWidth := max(termWidth - numWidth - padding, 20)
